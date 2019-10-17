@@ -35,10 +35,10 @@ Globals:
       Role: !Ref CodeDeployRole
 
 Resources:
-  ReadDynamoDBEvent:
+  DataPersistence:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: ./read_dynamodb_event/
+      CodeUri: ./src
       Handler: app.handler
       Runtime: python3.7
       Events:
