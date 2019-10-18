@@ -1,6 +1,5 @@
 import json
 import decimal
-import os
 import uuid
 
 import arrow as arrow
@@ -8,7 +7,7 @@ import boto3
 from boto3_type_annotations.dynamodb import Table
 
 dynamodb = boto3.resource('dynamodb')
-table: Table = dynamodb.Table(os.environ.get("TABLE_NAME"))
+table: Table = dynamodb.Table("nva-test")
 
 
 # Helper class to convert a DynamoDB item to JSON.
@@ -22,6 +21,45 @@ class DecimalEncoder(json.JSONEncoder):
         return super(DecimalEncoder, self).default(o)
 
 
+def insert_resource(generated_uuid, current_time, resource):
+    ddb_response = table.put_item(
+        Item={
+            'resource_identifier': generated_uuid,
+            'modifiedDate': current_time,
+            'createdDate': current_time,
+            'metadata': resource['metadata']
+        }
+    )
+    print(json.dumps(ddb_response, indent=4, cls=DecimalEncoder))
+    return ddb_response.get('Item')
+
+
+def modify_resource(resource, current_time):
+    ddb_response = table.update_item(
+        Key={
+            'resource_identifier': resource['resource_identifier']
+        },
+        UpdateExpression="set modifiedDate = :modifiedDate, metadata=:metadata",
+        ExpressionAttributeValues={
+            ':modifiedDate': current_time,
+            ':metadata': resource['metadata']
+        },
+        ReturnValues="ALL_NEW"
+    )
+    print(json.dumps(ddb_response, indent=4, cls=DecimalEncoder))
+    return ddb_response.get('Item')
+
+
+def remove_resource(resource):
+    ddb_response = table.delete_item(
+        Key={
+            'resource_identifier': resource['resource_identifier']
+        }
+    )
+    print(json.dumps(ddb_response, indent=4, cls=DecimalEncoder))
+    return ddb_response.get('HTTPStatusCode')
+
+
 def handler(event, context):
     operation = event.get('operation')
     resource = event.get('resource')
@@ -29,45 +67,15 @@ def handler(event, context):
     print('Operation - ' + operation)
     current_time = arrow.utcnow().isoformat().replace("+00:00", "Z")
 
-    if operation == 'RETRIEVE':
-        response = table.get_item(
-            Key={
-                'resource_identifier': resource['resource_identifier']
-            }
-        )
-        print(json.dumps(response, indent=4, cls=DecimalEncoder))
-    elif operation == 'INSERT':
+    if operation == 'INSERT':
         generated_uuid = uuid.uuid4().__str__()
-        print('Generated UUID: ' + generated_uuid)
-        response = table.put_item(
-            Item={
-                'resource_identifier': generated_uuid,
-                'modifiedDate': current_time,
-                'createdDate': current_time,
-                'metadata': resource['metadata']
-            }
-        )
-        print(json.dumps(response, indent=4, cls=DecimalEncoder))
+        item = insert_resource(generated_uuid, current_time, resource)
+        return item
     elif operation == 'MODIFY':
-        resource_identifier = resource['resource_identifier']
-        response = table.update_item(
-            Key={
-                'resource_identifier': resource_identifier
-            },
-            UpdateExpression="set modifiedDate = :modifiedDate, metadata=:metadata",
-            ExpressionAttributeValues={
-                ':modifiedDate': current_time,
-                ':metadata': resource['metadata']
-            },
-            ReturnValues="ALL_NEW"
-        )
-        print(json.dumps(response, indent=4, cls=DecimalEncoder))
+        item = modify_resource(resource, current_time)
+        return item
     elif operation == 'REMOVE':
-        response = table.delete_item(
-            Key={
-                'resource_identifier': resource['resource_identifier']
-            }
-        )
-        print(json.dumps(response, indent=4, cls=DecimalEncoder))
+        item = remove_resource(resource)
+        return item
     else:
         raise ValueError("Unknown operation")
