@@ -5,9 +5,28 @@ import uuid
 import arrow as arrow
 import boto3
 from boto3_type_annotations.dynamodb import Table
+import os
 
-dynamodb = boto3.resource('dynamodb')
-table: Table = dynamodb.Table("nva-test")
+
+class DynamoDBConnection:
+
+    def __init__(self, table_name=None):
+        self.table_name = table_name
+
+    def get_table_connection(self):
+        dynamodb = boto3.resource('dynamodb')
+        return dynamodb.Table(os.environ.get("TABLE_NAME"))
+
+    def get_local_table_connection(self):
+        dynamodb = boto3.resource('dynamodb', endpoint_url='http://localhost:8000')
+        return dynamodb.Table(self.table_name)
+
+
+if os.environ.get("TABLE_NAME") is not None:
+    table = DynamoDBConnection(os.environ.get("TABLE_NAME")).get_table_connection()
+else:
+    # Running as test
+    table = DynamoDBConnection("nva-test").get_local_table_connection()
 
 
 # Helper class to convert a DynamoDB item to JSON.
@@ -30,8 +49,7 @@ def insert_resource(generated_uuid, current_time, resource):
             'metadata': resource['metadata']
         }
     )
-    print(json.dumps(ddb_response, indent=4, cls=DecimalEncoder))
-    return ddb_response.get('Item')
+    return ddb_response
 
 
 def modify_resource(resource, current_time):
