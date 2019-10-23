@@ -4,6 +4,7 @@ import uuid
 
 import arrow as arrow
 import boto3
+from boto3.dynamodb.conditions import Key
 from boto3_type_annotations.dynamodb import Table
 import os
 
@@ -23,10 +24,10 @@ class DynamoDBConnection:
 
 
 if os.environ.get("TABLE_NAME") is not None:
-    table = DynamoDBConnection(os.environ.get("TABLE_NAME")).get_table_connection()
+    table: Table = DynamoDBConnection(os.environ.get("TABLE_NAME")).get_table_connection()
 else:
     # Running as test
-    table = DynamoDBConnection("nva-test").get_local_table_connection()
+    table: Table = DynamoDBConnection("nva-test").get_local_table_connection()
 
 
 # Helper class to convert a DynamoDB item to JSON.
@@ -52,30 +53,24 @@ def insert_resource(generated_uuid, current_time, resource):
     return ddb_response
 
 
-def modify_resource(resource, current_time):
-    ddb_response = table.update_item(
-        Key={
-            'resource_identifier': resource['resource_identifier']
-        },
-        UpdateExpression="set modifiedDate = :modifiedDate, metadata=:metadata",
-        ExpressionAttributeValues={
-            ':modifiedDate': current_time,
-            ':metadata': resource['metadata']
-        },
-        ReturnValues="ALL_NEW"
-    )
-    print(json.dumps(ddb_response, indent=4, cls=DecimalEncoder))
-    return ddb_response.get('Item')
+def modify_resource(current_time, modified_resource):
+    ddb_response = table.query(
+        TableName=table.table_name,
+        KeyConditionExpression=Key('resource_identifier')
+            .eq(modified_resource['resource_identifier']))
 
+    previous_resource = ddb_response['Items'][0]
 
-def remove_resource(resource):
-    ddb_response = table.delete_item(
-        Key={
-            'resource_identifier': resource['resource_identifier']
+    ddb_response = table.put_item(
+        Item={
+            'resource_identifier': modified_resource['resource_identifier'],
+            'modifiedDate': current_time,
+            'createdDate': previous_resource['createdDate'],
+            'metadata': modified_resource['metadata']
         }
     )
-    print(json.dumps(ddb_response, indent=4, cls=DecimalEncoder))
-    return ddb_response.get('HTTPStatusCode')
+
+    return ddb_response
 
 
 def handler(event, context):
@@ -91,9 +86,6 @@ def handler(event, context):
         return item
     elif operation == 'MODIFY':
         item = modify_resource(resource, current_time)
-        return item
-    elif operation == 'REMOVE':
-        item = remove_resource(resource)
         return item
     else:
         raise ValueError("Unknown operation")
