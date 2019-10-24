@@ -57,20 +57,27 @@ class RequestHandler:
         return ddb_response
 
     def handler(self, event, context):
-        operation = event.get('operation')
-        resource = event.get('resource')
+        operation = json.loads(event['body']).get('operation')
+        resource = json.loads(event['body']).get('resource')
 
-        print('Operation - ' + operation)
+        # print('Operation - ' + operation)
         current_time = arrow.utcnow().isoformat().replace("+00:00", "Z")
 
         if operation == 'INSERT':
             generated_uuid = uuid.uuid4().__str__()
             ddb_response = self.insert_resource(generated_uuid, current_time, resource)
-            print(json.dumps(ddb_response, indent=4, cls=DecimalEncoder))
-            return ddb_response
+            return {
+                'statusCode': 201,
+                'body': json.dumps(ddb_response),
+                'headers': {'Content-Type': 'application/json'}
+            }
         elif operation == 'MODIFY':
             ddb_response = self.modify_resource(resource, current_time)
-            return ddb_response
+            return {
+                'statusCode': 200,
+                'body': json.dumps(ddb_response),
+                'headers': {'Content-Type': 'application/json'}
+            }
         else:
             raise ValueError("Unknown operation")
 

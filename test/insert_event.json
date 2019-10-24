@@ -1,11 +1,3 @@
 {
-  "operation": "INSERT",
-  "resource": {
-    "metadata": {
-      "titles": {
-        "no": "En tittel",
-        "en": "A title"
-      }
-    }
-  }
+  "body":"{\"operation\": \"INSERT\",\"resource\": {\"metadata\": {\"titles\": {\"no\": \"En tittel\",\"en\": \"A title\"}}}}"
 }
