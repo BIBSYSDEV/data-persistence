@@ -1,45 +1,68 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Transform: AWS::Serverless-2016-10-31
-Description: >
-    dynamodb_event_reader
+AWSTemplateFormatVersion: 2010-09-09
+Transform:
+  - AWS::Serverless-2016-10-31
 
-    Sample SAM Template for dynamodb_event_reader to interact with DynamoDB Events.
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: data-persistence
+    Description: Performs crud operations in DynamoDB
+    Author: Unit
+    SpdxLicenseId: MIT
+    LicenseUrl: LICENSE
+    ReadmeUrl: README.md
+    HomePageUrl: https://github.com/BIBSYSDEV/data-persistence
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/BIBSYSDEV/data-persistence
 
-# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Parameters:
+  ProjectId:
+    Type: String
+    Description: The projectId used to associate new resources to team members
+  CodeDeployRole:
+    Type: String
+    Description: IAM role to allow AWS CodeDeploy to manage deployment of AWS Lambda functions
+  Stage:
+    Type: String
+    Description: The name for a project pipeline stage, such as Staging or Prod, for which resources are provisioned and deployed.
+    Default: ''
+
 Globals:
-    Function:
-        Timeout: 5
+  Function:
+    AutoPublishAlias: live
+    DeploymentPreference:
+      Enabled: true
+      Type: Canary10Percent5Minutes
+      Role: !Ref CodeDeployRole
 
 Resources:
-    ReadDynamoDBEvent:
-        Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
-        Properties:
-            CodeUri: read_dynamodb_event/
-            Handler: app.lambda_handler
-            Runtime: python3.7
-            Events:
-                DynamoDBEvent:
-                    Type: DynamoDB # More info about DynamoDB Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#dynamodb
-                    Properties:
-                        Stream:
-                            !GetAtt DynamoDBTable.StreamArn
-                        StartingPosition: TRIM_HORIZON
-                        BatchSize: 10
-            Environment:
-                Variables:
-                    TABLE_NAME: !GetAtt DynamoDBTable.TableName
-    DynamoDBTable:
-        Type: AWS::DynamoDB::Table
-        StreamSpecification:
-            StreamViewType: NEW_AND_OLD_IMAGES
-        Properties:
-            AttributeDefinitions:
-                - AttributeName: id
-                  AttributeType: S
-                - AttributeName: modifiedDate
-            KeySchema:
-                - AttributeName: id
-                  KeyType: HASH
-                - AttributeName: modifiedDate
-                  KeyType: RANGE
-            BillingMode: PAY_PER_REQUEST
+  DataPersistence:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./src
+      Handler: app.handler
+      Runtime: python3.7
+      Events:
+        PostEvent:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: POST
+      Environment:
+        Variables:
+          TABLE_NAME: nva-test
+#          TABLE_NAME: !GetAtt DynamoDBTable.TableName
+
+LambdaExecutionRole:
+  Description: Creating service role in IAM for AWS Lambda
+  Type: AWS::IAM::Role
+  Properties:
+    RoleName: !Sub 'CodeStar-${ProjectId}-Execution${Stage}'
+    AssumeRolePolicyDocument:
+      Statement:
+        - Effect: Allow
+          Principal:
+            Service: [lambda.amazonaws.com]
+          Action: sts:AssumeRole
+    Path: /
+    ManagedPolicyArns:
+      - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'

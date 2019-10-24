@@ -1,3 +1,3 @@
-# dynamodb_event_reader
+# data-persistence
 
-Sample SAM Template for dynamodb_event_reader to interact with DynamoDB Events.
+Performs CRUD operations in DynamoDB
