@@ -1,4 +1,4 @@
-from lib.RequestHandler import RequestHandler
+from classes.RequestHandler import RequestHandler
 
 
 def handler(event, context):

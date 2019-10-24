@@ -8,7 +8,7 @@ from boto3.dynamodb.conditions import Key
 from moto import mock_dynamodb2
 import arrow as arrow
 
-from src.lib.RequestHandler import RequestHandler
+from src.classes.RequestHandler import RequestHandler
 
 
 class TestHandlerCase(unittest.TestCase):
