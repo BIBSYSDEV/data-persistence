@@ -66,7 +66,6 @@ class RequestHandler:
         if operation == 'INSERT':
             generated_uuid = uuid.uuid4().__str__()
             ddb_response = self.insert_resource(generated_uuid, current_time, resource)
-            print(json.dumps(ddb_response, indent=4, cls=DecimalEncoder))
             return ddb_response
         elif operation == 'MODIFY':
             ddb_response = self.modify_resource(resource, current_time)
