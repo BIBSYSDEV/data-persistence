@@ -17,7 +17,6 @@ class RequestHandler:
             self.dynamodb = dynamodb
 
         self.table_name = os.environ.get("TABLE_NAME")
-
         self.table: Table = self.dynamodb.Table(self.table_name)
 
     def get_table_connection(self):
@@ -41,11 +40,16 @@ class RequestHandler:
         if len(ddb_response['Items']) == 0:
             raise ValueError("resource with identifier " + modified_resource['resource_identifier'] + " not found")
         elif 'metadata' not in modified_resource:
-            raise ValueError("resource with identifier " + modified_resource['resource_identifier'] + " has no metadata")
+            raise ValueError(
+                "resource with identifier " + modified_resource['resource_identifier'] + " has no metadata")
+        elif type(modified_resource['metadata']) is not dict:
+            raise ValueError("resource with identifier " + modified_resource[
+                'resource_identifier'] + " has invalid attribute type for metadata")
         else:
             previous_resource = ddb_response['Items'][0]
             if 'createdDate' not in previous_resource:
-                raise ValueError("resource with identifier " + modified_resource['resource_identifier'] + " has no createdDate in DB")
+                raise ValueError("resource with identifier " + modified_resource[
+                    'resource_identifier'] + " has no createdDate in DB")
             else:
                 ddb_response = self.table.put_item(
                     Item={
@@ -89,5 +93,3 @@ class RequestHandler:
                 'statusCode': 400,
                 'body': 'insufficient parameters'
             }
-
-
