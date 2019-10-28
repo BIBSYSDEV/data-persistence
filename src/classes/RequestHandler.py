@@ -1,4 +1,3 @@
-import decimal
 import json
 
 import boto3
@@ -11,16 +10,13 @@ import arrow as arrow
 
 class RequestHandler:
 
-    def __init__(self, dynamodb=None, table_name=None):
+    def __init__(self, dynamodb=None):
         if dynamodb is None:
             self.dynamodb = boto3.resource('dynamodb')
         else:
             self.dynamodb = dynamodb
 
-        if table_name is None:
-            self.table_name = os.environ.get("TABLE_NAME")
-        else:
-            self.table_name = table_name
+        self.table_name = os.environ.get("TABLE_NAME")
 
         self.table: Table = self.dynamodb.Table(self.table_name)
 
@@ -40,30 +36,34 @@ class RequestHandler:
 
     def modify_resource(self, current_time, modified_resource):
         ddb_response = self.table.query(
-            KeyConditionExpression=Key('resource_identifier')
-                .eq(modified_resource['resource_identifier']))
+            KeyConditionExpression=Key('resource_identifier').eq(modified_resource['resource_identifier']))
 
-        previous_resource = ddb_response['Items'][0]
-
-        ddb_response = self.table.put_item(
-            Item={
-                'resource_identifier': modified_resource['resource_identifier'],
-                'modifiedDate': current_time,
-                'createdDate': previous_resource['createdDate'],
-                'metadata': modified_resource['metadata']
-            }
-        )
-
-        return ddb_response
+        if len(ddb_response['Items']) == 0:
+            raise ValueError("resource with identifier " + modified_resource['resource_identifier'] + " not found")
+        elif 'metadata' not in modified_resource:
+            raise ValueError("resource with identifier " + modified_resource['resource_identifier'] + " has no metadata")
+        else:
+            previous_resource = ddb_response['Items'][0]
+            if 'createdDate' not in previous_resource:
+                raise ValueError("resource with identifier " + modified_resource['resource_identifier'] + " has no createdDate in DB")
+            else:
+                ddb_response = self.table.put_item(
+                    Item={
+                        'resource_identifier': modified_resource['resource_identifier'],
+                        'modifiedDate': current_time,
+                        'createdDate': previous_resource['createdDate'],
+                        'metadata': modified_resource['metadata']
+                    }
+                )
+                return ddb_response
 
     def handler(self, event, context):
         operation = json.loads(event['body']).get('operation')
         resource = json.loads(event['body']).get('resource')
 
-        # print('Operation - ' + operation)
         current_time = arrow.utcnow().isoformat().replace("+00:00", "Z")
 
-        if operation == 'INSERT':
+        if operation == 'INSERT' and resource is not None:
             generated_uuid = uuid.uuid4().__str__()
             ddb_response = self.insert_resource(generated_uuid, current_time, resource)
             return {
@@ -71,23 +71,23 @@ class RequestHandler:
                 'body': json.dumps(ddb_response),
                 'headers': {'Content-Type': 'application/json'}
             }
-        elif operation == 'MODIFY':
-            ddb_response = self.modify_resource(resource, current_time)
-            return {
-                'statusCode': 200,
-                'body': json.dumps(ddb_response),
-                'headers': {'Content-Type': 'application/json'}
-            }
+        elif operation == 'MODIFY' and resource is not None:
+            try:
+                ddb_response = self.modify_resource(current_time, resource)
+                return {
+                    'statusCode': 200,
+                    'body': json.dumps(ddb_response),
+                    'headers': {'Content-Type': 'application/json'}
+                }
+            except ValueError as e:
+                return {
+                    'statusCode': 400,
+                    'body': e.args[0]
+                }
         else:
-            raise ValueError("Unknown operation")
+            return {
+                'statusCode': 400,
+                'body': 'insufficient parameters'
+            }
 
 
-# Helper class to convert a DynamoDB item to JSON.
-class DecimalEncoder(json.JSONEncoder):
-    def default(self, o):
-        if isinstance(o, decimal.Decimal):
-            if abs(o) % 1 > 0:
-                return float(o)
-            else:
-                return int(o)
-        return super(DecimalEncoder, self).default(o)
