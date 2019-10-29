@@ -10,6 +10,11 @@ from moto import mock_dynamodb2
 import arrow as arrow
 
 
+def unittest_lambda_handler(event, context):
+    unittest.TextTestRunner().run(
+        unittest.TestLoader().loadTestsFromTestCase(TestHandlerCase))
+
+
 @mock_dynamodb2
 class TestHandlerCase(unittest.TestCase):
 
@@ -20,12 +25,13 @@ class TestHandlerCase(unittest.TestCase):
         os.environ['AWS_SECURITY_TOKEN'] = 'testing'
         os.environ['AWS_SESSION_TOKEN'] = 'testing'
         os.environ['TABLE_NAME'] = 'testing'
+        os.environ['REGION'] = 'eu-west-1'
 
     def tearDown(self):
         pass
 
     def setup_mock_database(self):
-        dynamodb = boto3.resource('dynamodb', region_name='eu-west-1')
+        dynamodb = boto3.resource('dynamodb', region_name=os.environ['REGION'])
         table_connection = dynamodb.create_table(TableName=os.environ['TABLE_NAME'],
                                                  KeySchema=[{'AttributeName': 'resource_identifier', 'KeyType': 'HASH'},
                                                             {'AttributeName': 'modifiedDate', 'KeyType': 'RANGE'}],
@@ -43,7 +49,9 @@ class TestHandlerCase(unittest.TestCase):
                     'titles': {
                         'no': 'En tittel'
                     }
-                }
+                },
+                'files': {},
+                'owner': 'owner@unit.no'
             }
         )
 
@@ -55,7 +63,9 @@ class TestHandlerCase(unittest.TestCase):
                     'titles': {
                         'no': 'En tittel'
                     }
-                }
+                },
+                'files': {},
+                'owner': 'owner@unit.no'
             }
         )
 
@@ -75,7 +85,9 @@ class TestHandlerCase(unittest.TestCase):
                 'titles': {
                     'no': self.random_word(6)
                 }
-            }
+            },
+            'files': {},
+            'owner': 'owner@unit.no'
         }
 
     def random_word(self, length):
@@ -87,11 +99,23 @@ class TestHandlerCase(unittest.TestCase):
         dynamodb = self.setup_mock_database()
         request_handler = RequestHandler(dynamodb)
         event = {
-            "body": "{\"operation\": \"INSERT\",\"resource\": {\"metadata\": {\"titles\": {\"no\": \"En tittel\","
+            "body": "{\"operation\": \"INSERT\",\"resource\": {\"owner\": \"owner@unit.no\", \"files\": {}, \"metadata\": {\"titles\": {\"no\": \"En tittel\","
                     "\"en\": \"A title\"}}}} "
         }
         handler_insert_response = request_handler.handler(event, None)
         self.assertEqual(handler_insert_response['statusCode'], 201, 'HTTP Status code not 201')
+        self.remove_mock_database(dynamodb)
+
+    def test_handler_insert_resource_missing_resource_owner_in_event_body(self):
+        from src.classes.RequestHandler import RequestHandler
+        dynamodb = self.setup_mock_database()
+        request_handler = RequestHandler(dynamodb)
+        event = {
+            "body": "{\"operation\": \"INSERT\",\"resource\": {\"files\": {}, \"metadata\": {\"titles\": {\"no\": \"En tittel\","
+                    "\"en\": \"A title\"}}}} "
+        }
+        handler_insert_response = request_handler.handler(event, None)
+        self.assertEqual(handler_insert_response['statusCode'], 400, 'HTTP Status code not 400')
         self.remove_mock_database(dynamodb)
 
     def test_handler_modify_resource(self):
@@ -100,7 +124,7 @@ class TestHandlerCase(unittest.TestCase):
         request_handler = RequestHandler(dynamodb)
         event = {
             "body": "{\"operation\": \"MODIFY\",\"resource\": {\"resource_identifier\": "
-                    "\"ebf20333-35a5-4a06-9c58-68ea688a9a8b\", \"metadata\": {\"titles\": {\"no\": \"En tittel\","
+                    "\"ebf20333-35a5-4a06-9c58-68ea688a9a8b\", \"owner\": \"owner@unit.no\", \"files\": {}, \"metadata\": {\"titles\": {\"no\": \"En tittel\","
                     "\"en\": \"A title\"}}}} "
         }
         handler_modify_response = request_handler.handler(event, None)
@@ -119,13 +143,39 @@ class TestHandlerCase(unittest.TestCase):
         self.assertEqual(handler_modify_response['statusCode'], 400, 'HTTP Status code not 400')
         self.remove_mock_database(dynamodb)
 
+    def test_handler_modify_resource_missing_resource_owner_in_event_body(self):
+        from src.classes.RequestHandler import RequestHandler
+        dynamodb = self.setup_mock_database()
+        request_handler = RequestHandler(dynamodb)
+        event = {
+            "body": "{\"operation\": \"MODIFY\",\"resource\": {\"resource_identifier\": "
+                    "\"ebf20333-35a5-4a06-9c58-68ea688a9a8b\", \"files\": {}, \"metadata\": {\"titles\": {\"no\": \"En tittel\","
+                    "\"en\": \"A title\"}}}}"
+        }
+        handler_modify_response = request_handler.handler(event, None)
+        self.assertEqual(handler_modify_response['statusCode'], 400, 'HTTP Status code not 400')
+        self.remove_mock_database(dynamodb)
+
+    def test_handler_modify_resource_missing_resource_files_in_event_body(self):
+        from src.classes.RequestHandler import RequestHandler
+        dynamodb = self.setup_mock_database()
+        request_handler = RequestHandler(dynamodb)
+        event = {
+            "body": "{\"operation\": \"MODIFY\",\"resource\": {\"resource_identifier\": "
+                    "\"ebf20333-35a5-4a06-9c58-68ea688a9a8b\", \"metadata\": {\"titles\": {\"no\": \"En tittel\","
+                    "\"en\": \"A title\"}}}}"
+        }
+        handler_modify_response = request_handler.handler(event, None)
+        self.assertEqual(handler_modify_response['statusCode'], 400, 'HTTP Status code not 400')
+        self.remove_mock_database(dynamodb)
+
     def test_handler_modify_resource_empty_resource_metadata_in_event_body(self):
         from src.classes.RequestHandler import RequestHandler
         dynamodb = self.setup_mock_database()
         request_handler = RequestHandler(dynamodb)
         event = {
             "body": "{\"operation\": \"MODIFY\",\"resource\": {\"resource_identifier\": "
-                    "\"ebf20333-35a5-4a06-9c58-68ea688a9a8b\", \"metadata\": {}}}"
+                    "\"ebf20333-35a5-4a06-9c58-68ea688a9a8b\", \"owner\": \"owner@unit.no\", \"files\": {}, \"metadata\": {}}}"
         }
         handler_modify_response = request_handler.handler(event, None)
         self.assertEqual(handler_modify_response['statusCode'], 200, 'HTTP Status code not 200')
@@ -137,12 +187,27 @@ class TestHandlerCase(unittest.TestCase):
         request_handler = RequestHandler(dynamodb)
         event = {
             "body": "{\"operation\": \"MODIFY\",\"resource\": {\"resource_identifier\": "
-                    "\"ebf20333-35a5-4a06-9c58-68ea688a9a8b\", \"metadata\": \"invalid type\"}}"
+                    "\"ebf20333-35a5-4a06-9c58-68ea688a9a8b\", \"owner\": \"owner@unit.no\", \"files\": {}, \"metadata\": \"invalid type\"}}"
         }
         handler_modify_response = request_handler.handler(event, None)
         self.assertEqual(handler_modify_response['statusCode'], 400, 'HTTP Status code not 400')
         self.assertEqual(handler_modify_response['body'],
                          "resource with identifier ebf20333-35a5-4a06-9c58-68ea688a9a8b has invalid attribute type for metadata",
+                         'HTTP Status code not 400')
+        self.remove_mock_database(dynamodb)
+
+    def test_handler_modify_resource_invalid_files_in_event_body(self):
+        from src.classes.RequestHandler import RequestHandler
+        dynamodb = self.setup_mock_database()
+        request_handler = RequestHandler(dynamodb)
+        event = {
+            "body": "{\"operation\": \"MODIFY\",\"resource\": {\"resource_identifier\": "
+                    "\"ebf20333-35a5-4a06-9c58-68ea688a9a8b\", \"owner\": \"owner@unit.no\", \"files\": \"invalid type\", \"metadata\": {}}}"
+        }
+        handler_modify_response = request_handler.handler(event, None)
+        self.assertEqual(handler_modify_response['statusCode'], 400, 'HTTP Status code not 400')
+        self.assertEqual(handler_modify_response['body'],
+                         "resource with identifier ebf20333-35a5-4a06-9c58-68ea688a9a8b has invalid attribute type for files",
                          'HTTP Status code not 400')
         self.remove_mock_database(dynamodb)
 
@@ -152,14 +217,15 @@ class TestHandlerCase(unittest.TestCase):
         request_handler = RequestHandler(dynamodb)
         event = {
             "body": "{\"operation\": \"MODIFY\",\"resource\": {\"resource_identifier\": "
-                    "\"acf20333-35a5-4a06-9c58-68ea688a9a9c\", \"metadata\": {\"titles\": {\"no\": \"En tittel\","
+                    "\"acf20333-35a5-4a06-9c58-68ea688a9a9c\", \"owner\": \"owner@unit.no\", \"files\": {}, \"metadata\": {\"titles\": {\"no\": \"En tittel\","
                     "\"en\": \"A title\"}}}} "
         }
         handler_modify_response = request_handler.handler(event, None)
         self.assertEqual(handler_modify_response['statusCode'], 400, 'HTTP Status code not 400')
-        self.assertEqual(handler_modify_response['body'], "resource with identifier acf20333-35a5-4a06-9c58-68ea688a9a9c has no createdDate in DB", 'HTTP Status code not 400')
+        self.assertEqual(handler_modify_response['body'],
+                         "resource with identifier acf20333-35a5-4a06-9c58-68ea688a9a9c has no createdDate in DB",
+                         'HTTP Status code not 400')
         self.remove_mock_database(dynamodb)
-
 
     def test_handler_modify_resource_unknown_resource_identifier_in_event_body(self):
         from src.classes.RequestHandler import RequestHandler
@@ -167,7 +233,7 @@ class TestHandlerCase(unittest.TestCase):
         request_handler = RequestHandler(dynamodb)
         event = {
             "body": "{\"operation\": \"MODIFY\",\"resource\": {\"resource_identifier\": "
-                    "\"UNKNOWN_ID\", \"metadata\": {\"titles\": {\"no\": \"En tittel\","
+                    "\"UNKNOWN_ID\", \"owner\": \"owner@unit.no\", \"files\": {}, \"metadata\": {\"titles\": {\"no\": \"En tittel\","
                     "\"en\": \"A title\"}}}} "
         }
         handler_modify_response = request_handler.handler(event, None)
@@ -182,7 +248,7 @@ class TestHandlerCase(unittest.TestCase):
         request_handler = RequestHandler(dynamodb)
         event = {
             "body": "{\"operation\": \"UNKNOWN_OPERATION\",\"resource\": {\"resource_identifier\": "
-                    "\"ebf20333-35a5-4a06-9c58-68ea688a9a8b\", \"metadata\": {\"titles\": {\"no\": \"En tittel\","
+                    "\"ebf20333-35a5-4a06-9c58-68ea688a9a8b\", \"owner\": \"owner@unit.no\", \"files\": {}, \"metadata\": {\"titles\": {\"no\": \"En tittel\","
                     "\"en\": \"A title\"}}}} "
         }
         handler_modify_response = request_handler.handler(event, None)
@@ -206,10 +272,18 @@ class TestHandlerCase(unittest.TestCase):
         request_handler = RequestHandler(dynamodb)
         event = {
             "body": "{\"resource\": {\"resource_identifier\": "
-                    "\"ebf20333-35a5-4a06-9c58-68ea688a9a8b\", \"metadata\": {\"titles\": {\"no\": \"En tittel\","
+                    "\"ebf20333-35a5-4a06-9c58-68ea688a9a8b\", \"owner\": \"owner@unit.no\", \"files\": {}, \"metadata\": {\"titles\": {\"no\": \"En tittel\","
                     "\"en\": \"A title\"}}}} "
         }
         handler_modify_response = request_handler.handler(event, None)
+        self.assertEqual(handler_modify_response['statusCode'], 400, 'HTTP Status code not 400')
+        self.remove_mock_database(dynamodb)
+
+    def test_handler_missing_event(self):
+        from src.classes.RequestHandler import RequestHandler
+        dynamodb = self.setup_mock_database()
+        request_handler = RequestHandler(dynamodb)
+        handler_modify_response = request_handler.handler(None, None)
         self.assertEqual(handler_modify_response['statusCode'], 400, 'HTTP Status code not 400')
         self.remove_mock_database(dynamodb)
 
@@ -284,6 +358,15 @@ class TestHandlerCase(unittest.TestCase):
         self.assertNotEqual(first_modification_resource['metadata'], second_modification_resource['metadata'],
                             'Value not persisted as expected')
         self.remove_mock_database(dynamodb)
+
+    def test_app(self):
+        from src import app
+        self.assertRaises(ValueError, app.handler, None, None)
+        event = {
+            "body": "{\"operation\": \"UNKNOWN_OPERATION\"} "
+        }
+        handler_response = app.handler(event, None)
+        self.assertEqual(handler_response['statusCode'], 400, 'HTTP Status code not 400')
 
 
 if __name__ == '__main__':
