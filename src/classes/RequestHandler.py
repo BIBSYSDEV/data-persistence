@@ -1,22 +1,26 @@
 import json
+import os
+import uuid
+import http
 
+import arrow as arrow
 import boto3
 from boto3.dynamodb.conditions import Key
 from boto3_type_annotations.dynamodb import Table
-import os
-import uuid
-import arrow as arrow
+
+ENV_REGION = 'REGION'
+ENV_TABLE_NAME = 'TABLE_NAME'
 
 
 class RequestHandler:
 
     def __init__(self, dynamodb=None):
         if dynamodb is None:
-            self.dynamodb = boto3.resource('dynamodb', region_name=os.environ['REGION'])
+            self.dynamodb = boto3.resource('dynamodb', region_name=os.environ[ENV_REGION])
         else:
             self.dynamodb = dynamodb
 
-        self.table_name = os.environ.get("TABLE_NAME")
+        self.table_name = os.environ.get(ENV_TABLE_NAME)
         self.table: Table = self.dynamodb.Table(self.table_name)
 
     def get_table_connection(self):
@@ -40,12 +44,12 @@ class RequestHandler:
             KeyConditionExpression=Key('resource_identifier').eq(modified_resource['resource_identifier']))
 
         if len(ddb_response['Items']) == 0:
-            raise ValueError("resource with identifier " + modified_resource['resource_identifier'] + " not found")
+            raise ValueError('resource with identifier ' + modified_resource['resource_identifier'] + ' not found')
         else:
             previous_resource = ddb_response['Items'][0]
             if 'createdDate' not in previous_resource:
-                raise ValueError("resource with identifier " + modified_resource[
-                    'resource_identifier'] + " has no createdDate in DB")
+                raise ValueError('resource with identifier ' + modified_resource[
+                    'resource_identifier'] + ' has no createdDate in DB')
             else:
                 ddb_response = self.table.put_item(
                     Item={
@@ -63,42 +67,44 @@ class RequestHandler:
 
         if 'metadata' not in resource:
             raise ValueError(
-                "resource with identifier " + resource_identifier + " has no metadata")
+                'resource with identifier ' + resource_identifier + ' has no metadata')
         elif 'files' not in resource:
             raise ValueError(
-                "resource with identifier " + resource_identifier + " has no files")
+                'resource with identifier ' + resource_identifier + ' has no files')
         elif 'owner' not in resource:
             raise ValueError(
-                "resource with identifier " + resource_identifier + " has no owner")
+                'resource with identifier ' + resource_identifier + ' has no owner')
         elif type(resource['metadata']) is not dict:
-            raise ValueError("resource with identifier " + resource_identifier + " has invalid attribute type for metadata")
+            raise ValueError(
+                'resource with identifier ' + resource_identifier + ' has invalid attribute type for metadata')
         elif type(resource['files']) is not dict:
-            raise ValueError("resource with identifier " + resource_identifier + " has invalid attribute type for files")
+            raise ValueError(
+                'resource with identifier ' + resource_identifier + ' has invalid attribute type for files')
 
     def handler(self, event, context):
         if event is None or 'body' not in event:
             return {
-                'statusCode': 400,
+                'statusCode': http.HTTPStatus.BAD_REQUEST,
                 'body': 'insufficient parameters'
             }
         else:
             operation = json.loads(event['body']).get('operation')
             resource = json.loads(event['body']).get('resource')
 
-            current_time = arrow.utcnow().isoformat().replace("+00:00", "Z")
+            current_time = arrow.utcnow().isoformat().replace('+00:00', 'Z')
 
             if operation == 'INSERT' and resource is not None:
                 try:
                     self.validate_resource('NEW_RESOURCE', resource)
                 except ValueError as e:
                     return {
-                        'statusCode': 400,
+                        'statusCode': http.HTTPStatus.BAD_REQUEST,
                         'body': e.args[0]
                     }
                 generated_uuid = uuid.uuid4().__str__()
                 ddb_response = self.insert_resource(generated_uuid, current_time, resource)
                 return {
-                    'statusCode': 201,
+                    'statusCode': http.HTTPStatus.CREATED,
                     'body': json.dumps(ddb_response),
                     'headers': {'Content-Type': 'application/json'}
                 }
@@ -107,17 +113,17 @@ class RequestHandler:
                     self.validate_resource(resource['resource_identifier'], resource)
                     ddb_response = self.modify_resource(current_time, resource)
                     return {
-                        'statusCode': 200,
+                        'statusCode': http.HTTPStatus.OK,
                         'body': json.dumps(ddb_response),
                         'headers': {'Content-Type': 'application/json'}
                     }
                 except ValueError as e:
                     return {
-                        'statusCode': 400,
+                        'statusCode': http.HTTPStatus.BAD_REQUEST,
                         'body': e.args[0]
                     }
             else:
                 return {
-                    'statusCode': 400,
+                    'statusCode': http.HTTPStatus.BAD_REQUEST,
                     'body': 'insufficient parameters'
                 }

@@ -2,6 +2,7 @@ import os
 import random
 import string
 import unittest
+import http
 
 import boto3
 import uuid
@@ -103,7 +104,7 @@ class TestHandlerCase(unittest.TestCase):
                     "\"en\": \"A title\"}}}} "
         }
         handler_insert_response = request_handler.handler(event, None)
-        self.assertEqual(handler_insert_response['statusCode'], 201, 'HTTP Status code not 201')
+        self.assertEqual(handler_insert_response['statusCode'], http.HTTPStatus.CREATED, 'HTTP Status code not 201')
         self.remove_mock_database(dynamodb)
 
     def test_handler_insert_resource_missing_resource_owner_in_event_body(self):
@@ -115,7 +116,7 @@ class TestHandlerCase(unittest.TestCase):
                     "\"en\": \"A title\"}}}} "
         }
         handler_insert_response = request_handler.handler(event, None)
-        self.assertEqual(handler_insert_response['statusCode'], 400, 'HTTP Status code not 400')
+        self.assertEqual(handler_insert_response['statusCode'], http.HTTPStatus.BAD_REQUEST, 'HTTP Status code not 400')
         self.remove_mock_database(dynamodb)
 
     def test_handler_modify_resource(self):
@@ -128,7 +129,7 @@ class TestHandlerCase(unittest.TestCase):
                     "\"en\": \"A title\"}}}} "
         }
         handler_modify_response = request_handler.handler(event, None)
-        self.assertEqual(handler_modify_response['statusCode'], 200, 'HTTP Status code not 200')
+        self.assertEqual(handler_modify_response['statusCode'], http.HTTPStatus.OK, 'HTTP Status code not 200')
         self.remove_mock_database(dynamodb)
 
     def test_handler_modify_resource_missing_resource_metadata_in_event_body(self):
@@ -140,7 +141,7 @@ class TestHandlerCase(unittest.TestCase):
                     "\"ebf20333-35a5-4a06-9c58-68ea688a9a8b\"}} "
         }
         handler_modify_response = request_handler.handler(event, None)
-        self.assertEqual(handler_modify_response['statusCode'], 400, 'HTTP Status code not 400')
+        self.assertEqual(handler_modify_response['statusCode'], http.HTTPStatus.BAD_REQUEST, 'HTTP Status code not 400')
         self.remove_mock_database(dynamodb)
 
     def test_handler_modify_resource_missing_resource_owner_in_event_body(self):
@@ -153,7 +154,7 @@ class TestHandlerCase(unittest.TestCase):
                     "\"en\": \"A title\"}}}}"
         }
         handler_modify_response = request_handler.handler(event, None)
-        self.assertEqual(handler_modify_response['statusCode'], 400, 'HTTP Status code not 400')
+        self.assertEqual(handler_modify_response['statusCode'], http.HTTPStatus.BAD_REQUEST, 'HTTP Status code not 400')
         self.remove_mock_database(dynamodb)
 
     def test_handler_modify_resource_missing_resource_files_in_event_body(self):
@@ -166,7 +167,7 @@ class TestHandlerCase(unittest.TestCase):
                     "\"en\": \"A title\"}}}}"
         }
         handler_modify_response = request_handler.handler(event, None)
-        self.assertEqual(handler_modify_response['statusCode'], 400, 'HTTP Status code not 400')
+        self.assertEqual(handler_modify_response['statusCode'], http.HTTPStatus.BAD_REQUEST, 'HTTP Status code not 400')
         self.remove_mock_database(dynamodb)
 
     def test_handler_modify_resource_empty_resource_metadata_in_event_body(self):
@@ -178,7 +179,7 @@ class TestHandlerCase(unittest.TestCase):
                     "\"ebf20333-35a5-4a06-9c58-68ea688a9a8b\", \"owner\": \"owner@unit.no\", \"files\": {}, \"metadata\": {}}}"
         }
         handler_modify_response = request_handler.handler(event, None)
-        self.assertEqual(handler_modify_response['statusCode'], 200, 'HTTP Status code not 200')
+        self.assertEqual(handler_modify_response['statusCode'], http.HTTPStatus.OK, 'HTTP Status code not 200')
         self.remove_mock_database(dynamodb)
 
     def test_handler_modify_resource_invalid_resource_metadata_in_event_body(self):
@@ -190,7 +191,7 @@ class TestHandlerCase(unittest.TestCase):
                     "\"ebf20333-35a5-4a06-9c58-68ea688a9a8b\", \"owner\": \"owner@unit.no\", \"files\": {}, \"metadata\": \"invalid type\"}}"
         }
         handler_modify_response = request_handler.handler(event, None)
-        self.assertEqual(handler_modify_response['statusCode'], 400, 'HTTP Status code not 400')
+        self.assertEqual(handler_modify_response['statusCode'], http.HTTPStatus.BAD_REQUEST, 'HTTP Status code not 400')
         self.assertEqual(handler_modify_response['body'],
                          "resource with identifier ebf20333-35a5-4a06-9c58-68ea688a9a8b has invalid attribute type for metadata",
                          'HTTP Status code not 400')
@@ -205,7 +206,7 @@ class TestHandlerCase(unittest.TestCase):
                     "\"ebf20333-35a5-4a06-9c58-68ea688a9a8b\", \"owner\": \"owner@unit.no\", \"files\": \"invalid type\", \"metadata\": {}}}"
         }
         handler_modify_response = request_handler.handler(event, None)
-        self.assertEqual(handler_modify_response['statusCode'], 400, 'HTTP Status code not 400')
+        self.assertEqual(handler_modify_response['statusCode'], http.HTTPStatus.BAD_REQUEST, 'HTTP Status code not 400')
         self.assertEqual(handler_modify_response['body'],
                          "resource with identifier ebf20333-35a5-4a06-9c58-68ea688a9a8b has invalid attribute type for files",
                          'HTTP Status code not 400')
@@ -221,7 +222,7 @@ class TestHandlerCase(unittest.TestCase):
                     "\"en\": \"A title\"}}}} "
         }
         handler_modify_response = request_handler.handler(event, None)
-        self.assertEqual(handler_modify_response['statusCode'], 400, 'HTTP Status code not 400')
+        self.assertEqual(handler_modify_response['statusCode'], http.HTTPStatus.BAD_REQUEST, 'HTTP Status code not 400')
         self.assertEqual(handler_modify_response['body'],
                          "resource with identifier acf20333-35a5-4a06-9c58-68ea688a9a9c has no createdDate in DB",
                          'HTTP Status code not 400')
@@ -237,7 +238,7 @@ class TestHandlerCase(unittest.TestCase):
                     "\"en\": \"A title\"}}}} "
         }
         handler_modify_response = request_handler.handler(event, None)
-        self.assertEqual(handler_modify_response['statusCode'], 400, 'HTTP Status code not 400')
+        self.assertEqual(handler_modify_response['statusCode'], http.HTTPStatus.BAD_REQUEST, 'HTTP Status code not 400')
         self.assertEqual(handler_modify_response['body'], "resource with identifier UNKNOWN_ID not found",
                          'Did not get expected error message')
         self.remove_mock_database(dynamodb)
@@ -252,7 +253,7 @@ class TestHandlerCase(unittest.TestCase):
                     "\"en\": \"A title\"}}}} "
         }
         handler_modify_response = request_handler.handler(event, None)
-        self.assertEqual(handler_modify_response['statusCode'], 400, 'HTTP Status code not 400')
+        self.assertEqual(handler_modify_response['statusCode'], http.HTTPStatus.BAD_REQUEST, 'HTTP Status code not 400')
         self.remove_mock_database(dynamodb)
 
     def test_handler_missing_resource_in_event_body(self):
@@ -263,7 +264,7 @@ class TestHandlerCase(unittest.TestCase):
             "body": "{\"operation\": \"INSERT\"} "
         }
         handler_modify_response = request_handler.handler(event, None)
-        self.assertEqual(handler_modify_response['statusCode'], 400, 'HTTP Status code not 400')
+        self.assertEqual(handler_modify_response['statusCode'], http.HTTPStatus.BAD_REQUEST, 'HTTP Status code not 400')
         self.remove_mock_database(dynamodb)
 
     def test_handler_missing_operation_in_event_body(self):
@@ -276,7 +277,7 @@ class TestHandlerCase(unittest.TestCase):
                     "\"en\": \"A title\"}}}} "
         }
         handler_modify_response = request_handler.handler(event, None)
-        self.assertEqual(handler_modify_response['statusCode'], 400, 'HTTP Status code not 400')
+        self.assertEqual(handler_modify_response['statusCode'], http.HTTPStatus.BAD_REQUEST, 'HTTP Status code not 400')
         self.remove_mock_database(dynamodb)
 
     def test_handler_missing_event(self):
@@ -284,7 +285,7 @@ class TestHandlerCase(unittest.TestCase):
         dynamodb = self.setup_mock_database()
         request_handler = RequestHandler(dynamodb)
         handler_modify_response = request_handler.handler(None, None)
-        self.assertEqual(handler_modify_response['statusCode'], 400, 'HTTP Status code not 400')
+        self.assertEqual(handler_modify_response['statusCode'], http.HTTPStatus.BAD_REQUEST, 'HTTP Status code not 400')
         self.remove_mock_database(dynamodb)
 
     def test_insert_resource(self):
@@ -298,7 +299,7 @@ class TestHandlerCase(unittest.TestCase):
 
         insert_response = request_handler.insert_resource(test_uuid, test_time_created, test_resource_insert)
 
-        self.assertEqual(insert_response['ResponseMetadata']['HTTPStatusCode'], 200, 'HTTP Status code not 200')
+        self.assertEqual(insert_response['ResponseMetadata']['HTTPStatusCode'], http.HTTPStatus.OK, 'HTTP Status code not 200')
 
         query_results = request_handler.get_table_connection().query(
             KeyConditionExpression=Key('resource_identifier').eq(test_uuid),
@@ -326,7 +327,7 @@ class TestHandlerCase(unittest.TestCase):
             generated_resource_modified = self.generate_random_resource(test_time_created, None, test_uuid)
             test_time_modified = arrow.utcnow().isoformat().replace("+00:00", "Z")
             modify_response = request_handler.modify_resource(test_time_modified, generated_resource_modified)
-            self.assertEqual(modify_response['ResponseMetadata']['HTTPStatusCode'], 200, 'HTTP Status code not 200')
+            self.assertEqual(modify_response['ResponseMetadata']['HTTPStatusCode'], http.HTTPStatus.OK, 'HTTP Status code not 200')
 
         query_results = request_handler.get_table_connection().query(
             KeyConditionExpression=Key('resource_identifier').eq(test_uuid),
@@ -366,7 +367,7 @@ class TestHandlerCase(unittest.TestCase):
             "body": "{\"operation\": \"UNKNOWN_OPERATION\"} "
         }
         handler_response = app.handler(event, None)
-        self.assertEqual(handler_response['statusCode'], 400, 'HTTP Status code not 400')
+        self.assertEqual(handler_response['statusCode'], http.HTTPStatus.BAD_REQUEST, 'HTTP Status code not 400')
 
 
 if __name__ == '__main__':
