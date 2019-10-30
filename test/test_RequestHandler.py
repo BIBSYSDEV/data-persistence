@@ -1,3 +1,4 @@
+import json
 import os
 import random
 import string
@@ -10,6 +11,8 @@ from boto3.dynamodb.conditions import Key
 from moto import mock_dynamodb2
 import arrow as arrow
 
+from classes.resource import Resource, encode_resource, Title, Creator, Metadata, File, FileMetadata
+
 
 def unittest_lambda_handler(event, context):
     unittest.TextTestRunner().run(
@@ -18,6 +21,8 @@ def unittest_lambda_handler(event, context):
 
 @mock_dynamodb2
 class TestHandlerCase(unittest.TestCase):
+    EVENT_OPERATION_INSERT = 'INSERT'
+    EVENT_OPERATION_MODIFY = 'MODIFY'
 
     def setUp(self):
         """Mocked AWS Credentials for moto."""
@@ -95,15 +100,61 @@ class TestHandlerCase(unittest.TestCase):
         letters = string.ascii_lowercase
         return ''.join(random.choice(letters) for i in range(length))
 
+    def generate_mock_resource(self, time_created, time_modified=None, uuid=uuid.uuid4().__str__()):
+        if time_modified is None:
+            time_modified = time_created
+
+        title_1 = Title('no', self.random_word(6))
+        title_2 = Title('en', self.random_word(6))
+        titles = {title_1.language_code: title_1.title, title_2.language_code: title_2.title}
+        creator_one = Creator('AUTHORITY_IDENTIFIER_1')
+        creator_two = Creator('AUTHORITY_IDENTIFIER_2')
+        creators = [creator_one, creator_two]
+        metadata = Metadata(creators, '', '', '', '', titles)
+        file_metadata_1 = FileMetadata('', '', None, '')
+        file_metadata_2 = FileMetadata('', '', None, '')
+        file_1 = File('FILE_IDENTIFIER_1', file_metadata_1)
+        file_2 = File('FILE_IDENTIFIER_2', file_metadata_2)
+        files = dict()
+        files[file_1.identifier] = file_1.file_metadata
+        files[file_2.identifier] = file_2.file_metadata
+        return Resource(uuid, time_modified, time_created, metadata, files, 'owner@unit.no')
+
+    def generate_mock_resource_only_metadata(self):
+
+        title_1 = Title('no', self.random_word(6))
+        title_2 = Title('en', self.random_word(6))
+        titles = {title_1.language_code: title_1.title, title_2.language_code: title_2.title}
+        creator_one = Creator('AUTHORITY_IDENTIFIER_1')
+        creator_two = Creator('AUTHORITY_IDENTIFIER_2')
+        creators = [creator_one, creator_two]
+        metadata = Metadata(creators, None, None, None, None, titles)
+        file_metadata_1 = FileMetadata(None, None, None, None)
+        file_metadata_2 = FileMetadata(None, None, None, None)
+        file_1 = File('FILE_IDENTIFIER_1', file_metadata_1)
+        file_2 = File('FILE_IDENTIFIER_2', file_metadata_2)
+        files = dict()
+        files[file_1.identifier] = file_1.file_metadata
+        files[file_2.identifier] = file_2.file_metadata
+        return Resource(None, None, None, metadata, files, 'owner@unit.no')
+
+    def generate_mock_event(self, operation, resource):
+        body = Body(operation, resource)
+        body_value = json.dumps(body, default=encode_body)
+        return {
+            'body': body_value
+        }
+
     def test_handler_insert_resource(self):
         from src.classes.RequestHandler import RequestHandler
         dynamodb = self.setup_mock_database()
         request_handler = RequestHandler(dynamodb)
-        event = {
-            "body": "{\"operation\": \"INSERT\",\"resource\": {\"owner\": \"owner@unit.no\", \"files\": {}, \"metadata\": {\"titles\": {\"no\": \"En tittel\","
-                    "\"en\": \"A title\"}}}} "
-        }
-        handler_insert_response = request_handler.handler(event, None)
+
+        resource = self.generate_mock_resource_only_metadata()
+
+        mock_event = self.generate_mock_event(self.EVENT_OPERATION_INSERT, resource)
+
+        handler_insert_response = request_handler.handler(mock_event, None)
         self.assertEqual(handler_insert_response['statusCode'], http.HTTPStatus.CREATED, 'HTTP Status code not 201')
         self.remove_mock_database(dynamodb)
 
@@ -193,7 +244,7 @@ class TestHandlerCase(unittest.TestCase):
         handler_modify_response = request_handler.handler(event, None)
         self.assertEqual(handler_modify_response['statusCode'], http.HTTPStatus.BAD_REQUEST, 'HTTP Status code not 400')
         self.assertEqual(handler_modify_response['body'],
-                         "resource with identifier ebf20333-35a5-4a06-9c58-68ea688a9a8b has invalid attribute type for metadata",
+                         'resource with identifier ebf20333-35a5-4a06-9c58-68ea688a9a8b has invalid attribute type for metadata',
                          'HTTP Status code not 400')
         self.remove_mock_database(dynamodb)
 
@@ -208,7 +259,7 @@ class TestHandlerCase(unittest.TestCase):
         handler_modify_response = request_handler.handler(event, None)
         self.assertEqual(handler_modify_response['statusCode'], http.HTTPStatus.BAD_REQUEST, 'HTTP Status code not 400')
         self.assertEqual(handler_modify_response['body'],
-                         "resource with identifier ebf20333-35a5-4a06-9c58-68ea688a9a8b has invalid attribute type for files",
+                         'resource with identifier ebf20333-35a5-4a06-9c58-68ea688a9a8b has invalid attribute type for files',
                          'HTTP Status code not 400')
         self.remove_mock_database(dynamodb)
 
@@ -224,7 +275,7 @@ class TestHandlerCase(unittest.TestCase):
         handler_modify_response = request_handler.handler(event, None)
         self.assertEqual(handler_modify_response['statusCode'], http.HTTPStatus.BAD_REQUEST, 'HTTP Status code not 400')
         self.assertEqual(handler_modify_response['body'],
-                         "resource with identifier acf20333-35a5-4a06-9c58-68ea688a9a9c has no createdDate in DB",
+                         'resource with identifier acf20333-35a5-4a06-9c58-68ea688a9a9c has no createdDate in DB',
                          'HTTP Status code not 400')
         self.remove_mock_database(dynamodb)
 
@@ -239,7 +290,7 @@ class TestHandlerCase(unittest.TestCase):
         }
         handler_modify_response = request_handler.handler(event, None)
         self.assertEqual(handler_modify_response['statusCode'], http.HTTPStatus.BAD_REQUEST, 'HTTP Status code not 400')
-        self.assertEqual(handler_modify_response['body'], "resource with identifier UNKNOWN_ID not found",
+        self.assertEqual(handler_modify_response['body'], 'resource with identifier UNKNOWN_ID not found',
                          'Did not get expected error message')
         self.remove_mock_database(dynamodb)
 
@@ -293,13 +344,14 @@ class TestHandlerCase(unittest.TestCase):
         dynamodb = self.setup_mock_database()
         request_handler = RequestHandler(dynamodb)
 
-        test_time_created = arrow.utcnow().isoformat().replace("+00:00", "Z")
+        test_time_created = arrow.utcnow().isoformat().replace('+00:00', 'Z')
         test_resource_insert = self.generate_random_resource(test_time_created)
         test_uuid = test_resource_insert['resource_identifier']
 
         insert_response = request_handler.insert_resource(test_uuid, test_time_created, test_resource_insert)
 
-        self.assertEqual(insert_response['ResponseMetadata']['HTTPStatusCode'], http.HTTPStatus.OK, 'HTTP Status code not 200')
+        self.assertEqual(insert_response['ResponseMetadata']['HTTPStatusCode'], http.HTTPStatus.OK,
+                         'HTTP Status code not 200')
 
         query_results = request_handler.get_table_connection().query(
             KeyConditionExpression=Key('resource_identifier').eq(test_uuid),
@@ -318,16 +370,17 @@ class TestHandlerCase(unittest.TestCase):
         dynamodb = self.setup_mock_database()
         request_handler = RequestHandler(dynamodb)
 
-        test_time_created = arrow.utcnow().isoformat().replace("+00:00", "Z")
+        test_time_created = arrow.utcnow().isoformat().replace('+00:00', 'Z')
         test_resource_initial = self.generate_random_resource(test_time_created)
         test_uuid = test_resource_initial['resource_identifier']
 
         request_handler.insert_resource(test_uuid, test_time_created, test_resource_initial)
         for counter in range(2):
             generated_resource_modified = self.generate_random_resource(test_time_created, None, test_uuid)
-            test_time_modified = arrow.utcnow().isoformat().replace("+00:00", "Z")
+            test_time_modified = arrow.utcnow().isoformat().replace('+00:00', 'Z')
             modify_response = request_handler.modify_resource(test_time_modified, generated_resource_modified)
-            self.assertEqual(modify_response['ResponseMetadata']['HTTPStatusCode'], http.HTTPStatus.OK, 'HTTP Status code not 200')
+            self.assertEqual(modify_response['ResponseMetadata']['HTTPStatusCode'], http.HTTPStatus.OK,
+                             'HTTP Status code not 200')
 
         query_results = request_handler.get_table_connection().query(
             KeyConditionExpression=Key('resource_identifier').eq(test_uuid),
@@ -372,3 +425,21 @@ class TestHandlerCase(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class Body:
+
+    def __init__(self, operation: str, resource: Resource):
+        self.operation = operation
+        self.resource = resource
+
+
+def encode_body(instance):
+    if isinstance(instance, Body):
+        return {
+            'operation': instance.operation,
+            'resource': encode_resource(instance.resource)
+        }
+    else:
+        type_name = instance.__class__.__name__
+        raise TypeError(f"Object of type '{type_name}' is not JSON serializable")

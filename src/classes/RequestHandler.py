@@ -11,6 +11,8 @@ from boto3_type_annotations.dynamodb import Table
 ENV_REGION = 'REGION'
 ENV_TABLE_NAME = 'TABLE_NAME'
 
+DDB_RESPONSE_ATTRIBUTE_NAME_ITEMS = 'Items'
+
 
 class RequestHandler:
 
@@ -43,7 +45,7 @@ class RequestHandler:
         ddb_response = self.table.query(
             KeyConditionExpression=Key('resource_identifier').eq(modified_resource['resource_identifier']))
 
-        if len(ddb_response['Items']) == 0:
+        if len(ddb_response[DDB_RESPONSE_ATTRIBUTE_NAME_ITEMS]) == 0:
             raise ValueError('resource with identifier ' + modified_resource['resource_identifier'] + ' not found')
         else:
             previous_resource = ddb_response['Items'][0]
@@ -80,6 +82,12 @@ class RequestHandler:
         elif type(resource['files']) is not dict:
             raise ValueError(
                 'resource with identifier ' + resource_identifier + ' has invalid attribute type for files')
+
+    def remove_attributes_with_empty_value(self, dictionary):
+        new_dictionary = ''
+
+        return new_dictionary
+
 
     def handler(self, event, context):
         if event is None or 'body' not in event:
