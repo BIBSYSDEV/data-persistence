@@ -356,22 +356,22 @@ class TestHandlerCase(unittest.TestCase):
         self.assertEqual(handler_insert_response[Constants.RESPONSE_STATUS_CODE], http.HTTPStatus.CREATED,
                          'HTTP Status code not 201')
 
-        # TODO Get resource identifier from response, then run tests below
+        resource_identifier = json.loads(handler_insert_response[Constants.RESPONSE_BODY]).get('resource_identifier')
 
-        # query_results = request_handler.get_table_connection().query(
-        #     KeyConditionExpression=Key(Constants.DDB_FIELD_RESOURCE_IDENTIFIER).eq(resource_identifier),
-        #     ScanIndexForward=True
-        # )
-        #
-        # inserted_resource = query_results[Constants.DDB_RESPONSE_ATTRIBUTE_NAME_ITEMS][0]
-        # self.assertIsNotNone(inserted_resource[Constants.DDB_FIELD_CREATED_DATE], 'Value not persisted as expected')
-        # self.assertIsNotNone(inserted_resource[Constants.DDB_FIELD_MODIFIED_DATE], 'Value not persisted as expected')
-        # self.assertIsNotNone(inserted_resource[Constants.DDB_FIELD_METADATA], 'Value not persisted as expected')
-        # self.assertEqual(inserted_resource[Constants.DDB_FIELD_MODIFIED_DATE],
-        #                  inserted_resource[Constants.DDB_FIELD_CREATED_DATE],
-        #                  'Value not persisted as expected')
-        # self.assertEqual(inserted_resource[Constants.DDB_FIELD_METADATA], resource.metadata,
-        #                  'Value not persisted as expected')
+        query_results = request_handler.get_table_connection().query(
+            KeyConditionExpression=Key(Constants.DDB_FIELD_RESOURCE_IDENTIFIER).eq(resource_identifier),
+            ScanIndexForward=True
+        )
+
+        inserted_resource = query_results[Constants.DDB_RESPONSE_ATTRIBUTE_NAME_ITEMS][0]
+        self.assertIsNotNone(inserted_resource[Constants.DDB_FIELD_CREATED_DATE], 'Value not persisted as expected')
+        self.assertIsNotNone(inserted_resource[Constants.DDB_FIELD_MODIFIED_DATE], 'Value not persisted as expected')
+        self.assertIsNotNone(inserted_resource[Constants.DDB_FIELD_METADATA], 'Value not persisted as expected')
+        self.assertEqual(inserted_resource[Constants.DDB_FIELD_MODIFIED_DATE],
+                         inserted_resource[Constants.DDB_FIELD_CREATED_DATE],
+                         'Value not persisted as expected')
+        self.assertEqual(inserted_resource[Constants.DDB_FIELD_METADATA], resource.metadata,
+                         'Value not persisted as expected')
         self.remove_mock_database(dynamodb)
 
     # TODO: Use handler request

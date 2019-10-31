@@ -94,7 +94,7 @@ class RequestHandler:
                     return self.response(http.HTTPStatus.BAD_REQUEST, e.args[0])
                 generated_uuid = uuid.uuid4().__str__()
                 ddb_response = self.insert_resource(generated_uuid, current_time, resource)
-                # TODO: Add resource identifier to response
+                ddb_response['resource_identifier'] = generated_uuid
                 return self.response(http.HTTPStatus.CREATED, json.dumps(ddb_response))
             elif operation == Constants.OPERATION_MODIFY and resource is not None:
                 try:
