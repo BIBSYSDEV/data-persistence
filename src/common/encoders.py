@@ -1,3 +1,4 @@
+from common.helpers import remove_none_values
 from data.creator import Creator
 from data.file_metadata import FileMetadata
 from data.metadata import Metadata
@@ -73,14 +74,6 @@ def encode_metadata(instance):
     else:
         type_name = instance.__class__.__name__
         raise TypeError(f"Object of type {type_name} is not JSON serializable")
-
-
-def remove_none_values(temp_value):
-    return_value = dict()
-    for key, value in temp_value.items():
-        if value is not None:
-            return_value[key] = value
-    return return_value
 
 
 def encode_resource(instance):
