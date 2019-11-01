@@ -25,7 +25,6 @@ class RequestHandler:
     def __init__(self, dynamodb=None):
         if dynamodb is None:
             self.dynamodb = boto3.resource('dynamodb', region_name=os.environ[Constants.ENV_VAR_REGION])
-            # self.dynamodb = boto3.resource('dynamodb', region_name='eu-west-1')
         else:
             self.dynamodb = dynamodb
 
