@@ -24,3 +24,5 @@ class Constants:
     DDB_FIELD_METADATA = 'metadata'
     DDB_FIELD_FILES = 'files'
     DDB_FIELD_OWNER = 'owner'
+
+    ERROR_MISSING_EVENT = 'Missing event'
