@@ -13,6 +13,13 @@ from common.validator import validate_resource
 from data.resource import Resource
 
 
+def response(status_code, body):
+    return {
+        Constants.RESPONSE_STATUS_CODE: status_code,
+        Constants.RESPONSE_BODY: body
+    }
+
+
 class RequestHandler:
 
     def __init__(self, dynamodb=None):
@@ -66,15 +73,9 @@ class RequestHandler:
                 )
                 return ddb_response
 
-    def response(self, status_code, body):
-        return {
-            Constants.RESPONSE_STATUS_CODE: status_code,
-            Constants.RESPONSE_BODY: body
-        }
-
     def handler(self, event, context):
         if event is None or Constants.EVENT_BODY not in event:
-            return self.response(http.HTTPStatus.BAD_REQUEST, 'Insufficient parameters')
+            return response(http.HTTPStatus.BAD_REQUEST, 'Insufficient parameters')
         else:
             body = json.loads(event[Constants.EVENT_BODY])
             operation = body.get(Constants.JSON_ATTRIBUTE_NAME_OPERATION)
@@ -83,7 +84,7 @@ class RequestHandler:
             try:
                 resource = Resource.from_dict(resource_dict_from_json)
             except TypeError as e:
-                return self.response(http.HTTPStatus.BAD_REQUEST, e.args[0])
+                return response(http.HTTPStatus.BAD_REQUEST, e.args[0])
 
             current_time = arrow.utcnow().isoformat().replace('+00:00', 'Z')
 
@@ -91,18 +92,18 @@ class RequestHandler:
                 try:
                     validate_resource(operation, resource)
                 except ValueError as e:
-                    return self.response(http.HTTPStatus.BAD_REQUEST, e.args[0])
+                    return response(http.HTTPStatus.BAD_REQUEST, e.args[0])
                 generated_uuid = uuid.uuid4().__str__()
                 ddb_response = self.insert_resource(generated_uuid, current_time, resource)
                 ddb_response['resource_identifier'] = generated_uuid
-                return self.response(http.HTTPStatus.CREATED, json.dumps(ddb_response))
+                return response(http.HTTPStatus.CREATED, json.dumps(ddb_response))
             elif operation == Constants.OPERATION_MODIFY and resource is not None:
                 try:
                     validate_resource(operation, resource)
                     ddb_response = self.modify_resource(current_time, resource)
                     ddb_response['resource_identifier'] = resource.resource_identifier
-                    return self.response(http.HTTPStatus.OK, json.dumps(ddb_response))
+                    return response(http.HTTPStatus.OK, json.dumps(ddb_response))
                 except ValueError as e:
-                    return self.response(http.HTTPStatus.BAD_REQUEST, e.args[0])
+                    return response(http.HTTPStatus.BAD_REQUEST, e.args[0])
             else:
-                return self.response(http.HTTPStatus.BAD_REQUEST, 'Insufficient parameters')
+                return response(http.HTTPStatus.BAD_REQUEST, 'Insufficient parameters')
