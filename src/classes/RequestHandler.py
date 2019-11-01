@@ -100,6 +100,7 @@ class RequestHandler:
                 try:
                     validate_resource(operation, resource)
                     ddb_response = self.modify_resource(current_time, resource)
+                    ddb_response['resource_identifier'] = resource.resource_identifier
                     return self.response(http.HTTPStatus.OK, json.dumps(ddb_response))
                 except ValueError as e:
                     return self.response(http.HTTPStatus.BAD_REQUEST, e.args[0])

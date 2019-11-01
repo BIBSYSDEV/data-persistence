@@ -6,13 +6,12 @@ import string
 import unittest
 import uuid
 
-import arrow as arrow
 import boto3
 from boto3.dynamodb.conditions import Key
 from moto import mock_dynamodb2
 
 from common.constants import Constants
-from common.encoders import encode_resource
+from common.encoders import encode_resource, encode_file_metadata, encode_files, encode_creator, encode_metadata
 from common.helpers import remove_none_values
 from data.creator import Creator
 from data.file import File
@@ -146,6 +145,68 @@ class TestHandlerCase(unittest.TestCase):
                          'HTTP Status code not 201')
         self.remove_mock_database(dynamodb)
 
+    def test_handler_insert_resource_missing_resource_metadata(self):
+        from src.classes.RequestHandler import RequestHandler
+        dynamodb = self.setup_mock_database()
+        request_handler = RequestHandler(dynamodb)
+        resource = self.generate_mock_resource()
+        resource.metadata = None
+        event = self.generate_mock_event(Constants.OPERATION_INSERT, resource)
+        handler_insert_response = request_handler.handler(event, None)
+        self.assertEqual(handler_insert_response[Constants.RESPONSE_STATUS_CODE], http.HTTPStatus.BAD_REQUEST,
+                         'HTTP Status code not 400')
+        self.remove_mock_database(dynamodb)
+
+    def test_handler_insert_resource_missing_resource_files(self):
+        from src.classes.RequestHandler import RequestHandler
+        dynamodb = self.setup_mock_database()
+        request_handler = RequestHandler(dynamodb)
+        resource = self.generate_mock_resource()
+        resource.files = None
+        event = self.generate_mock_event(Constants.OPERATION_INSERT, resource)
+        handler_insert_response = request_handler.handler(event, None)
+        self.assertEqual(handler_insert_response[Constants.RESPONSE_STATUS_CODE], http.HTTPStatus.BAD_REQUEST,
+                         'HTTP Status code not 400')
+        self.remove_mock_database(dynamodb)
+
+    def test_handler_insert_resource_missing_resource_metadata(self):
+        from src.classes.RequestHandler import RequestHandler
+        dynamodb = self.setup_mock_database()
+        request_handler = RequestHandler(dynamodb)
+        resource = self.generate_mock_resource()
+        resource.metadata = None
+        event = self.generate_mock_event(Constants.OPERATION_INSERT, resource)
+        handler_insert_response = request_handler.handler(event, None)
+        self.assertEqual(handler_insert_response[Constants.RESPONSE_STATUS_CODE], http.HTTPStatus.BAD_REQUEST,
+                         'HTTP Status code not 400')
+        self.remove_mock_database(dynamodb)
+
+    def test_handler_insert_resource_invalid_resource_metadata_type_in_event_body(self):
+        from src.classes.RequestHandler import RequestHandler
+        dynamodb = self.setup_mock_database()
+        request_handler = RequestHandler(dynamodb)
+        event = {
+            "body": "{\"operation\": \"INSERT\",\"resource\": {\"resource_identifier\": "
+                    "\"fbf20333-35a5-4a06-9c58-68ea688a9a8b\", \"owner\": \"owner@unit.no\", \"files\": {}, \"metadata\": \"invalid type\"}}"
+        }
+        handler_modify_response = request_handler.handler(event, None)
+        self.assertEqual(handler_modify_response[Constants.RESPONSE_STATUS_CODE], http.HTTPStatus.BAD_REQUEST,
+                         'HTTP Status code not 400')
+        self.remove_mock_database(dynamodb)
+
+    def test_handler_insert_resource_invalid_resource_files_type_in_event_body(self):
+        from src.classes.RequestHandler import RequestHandler
+        dynamodb = self.setup_mock_database()
+        request_handler = RequestHandler(dynamodb)
+        event = {
+            "body": "{\"operation\": \"INSERT\",\"resource\": {\"resource_identifier\": "
+                    "\"fbf20333-35a5-4a06-9c58-68ea688a9a8b\", \"owner\": \"owner@unit.no\", \"files\": \"invalid type\", \"metadata\": {}}}"
+        }
+        handler_modify_response = request_handler.handler(event, None)
+        self.assertEqual(handler_modify_response[Constants.RESPONSE_STATUS_CODE], http.HTTPStatus.BAD_REQUEST,
+                         'HTTP Status code not 400')
+        self.remove_mock_database(dynamodb)
+
     def test_handler_insert_resource_missing_resource_owner_in_event_body(self):
         from src.classes.RequestHandler import RequestHandler
         dynamodb = self.setup_mock_database()
@@ -167,6 +228,18 @@ class TestHandlerCase(unittest.TestCase):
         handler_modify_response = request_handler.handler(event, None)
         self.assertEqual(handler_modify_response[Constants.RESPONSE_STATUS_CODE], http.HTTPStatus.OK,
                          'HTTP Status code not 200')
+        self.remove_mock_database(dynamodb)
+
+    def test_handler_modify_resource_missing_resource_identifier(self):
+        from src.classes.RequestHandler import RequestHandler
+        dynamodb = self.setup_mock_database()
+        request_handler = RequestHandler(dynamodb)
+        resource = self.generate_mock_resource(None, None, self.EXISTING_RESOURCE_IDENTIFIER)
+        resource.resource_identifier = None
+        event = self.generate_mock_event(Constants.OPERATION_MODIFY, resource)
+        handler_modify_response = request_handler.handler(event, None)
+        self.assertEqual(handler_modify_response[Constants.RESPONSE_STATUS_CODE], http.HTTPStatus.BAD_REQUEST,
+                         'HTTP Status code not 400')
         self.remove_mock_database(dynamodb)
 
     def test_handler_modify_resource_missing_resource_metadata_in_event_body(self):
@@ -353,6 +426,9 @@ class TestHandlerCase(unittest.TestCase):
         event = self.generate_mock_event(Constants.OPERATION_INSERT, resource)
         handler_insert_response = request_handler.handler(event, None)
 
+        resource_dict_from_json = json.loads(event[Constants.EVENT_BODY]).get(Constants.JSON_ATTRIBUTE_NAME_RESOURCE)
+        resource_inserted = Resource.from_dict(resource_dict_from_json)
+
         self.assertEqual(handler_insert_response[Constants.RESPONSE_STATUS_CODE], http.HTTPStatus.CREATED,
                          'HTTP Status code not 201')
 
@@ -370,31 +446,41 @@ class TestHandlerCase(unittest.TestCase):
         self.assertEqual(inserted_resource[Constants.DDB_FIELD_MODIFIED_DATE],
                          inserted_resource[Constants.DDB_FIELD_CREATED_DATE],
                          'Value not persisted as expected')
-        self.assertEqual(inserted_resource[Constants.DDB_FIELD_METADATA], resource.metadata,
+        self.assertEqual(inserted_resource[Constants.DDB_FIELD_METADATA], resource_inserted.metadata,
                          'Value not persisted as expected')
         self.remove_mock_database(dynamodb)
 
-    # TODO: Use handler request
     def test_modify_resource(self):
         from src.classes.RequestHandler import RequestHandler
         dynamodb = self.setup_mock_database()
         request_handler = RequestHandler(dynamodb)
 
-        time_created = arrow.utcnow().isoformat().replace('+00:00', 'Z')
-        resource = self.generate_mock_resource(time_created, time_created)
-        resource_identifier = resource.resource_identifier
+        # time_created = arrow.utcnow().isoformat().replace('+00:00', 'Z')
+        # resource = self.generate_mock_resource(time_created, time_created)
+        # resource_identifier = resource.resource_identifier
+        # request_handler.insert_resource(resource_identifier, time_created, resource)
 
-        request_handler.insert_resource(resource_identifier, time_created, resource)
+        resource = self.generate_mock_resource(None, None, None)
+        event = self.generate_mock_event(Constants.OPERATION_INSERT, resource)
+        handler_insert_response = request_handler.handler(event, None)
+
+        created_resource_identifier = json.loads(handler_insert_response[Constants.RESPONSE_BODY]).get(
+            'resource_identifier')
+        resource_dict_from_json = json.loads(event[Constants.EVENT_BODY]).get(Constants.JSON_ATTRIBUTE_NAME_RESOURCE)
+        resource_inserted = Resource.from_dict(resource_dict_from_json)
+        resource_inserted.resource_identifier = created_resource_identifier
+
         for counter in range(2):
-            generated_resource_modified = self.generate_mock_resource(time_created, None, resource_identifier)
-            time_modified = arrow.utcnow().isoformat().replace('+00:00', 'Z')
-            modify_response = request_handler.modify_resource(time_modified, generated_resource_modified)
-            self.assertEqual(modify_response[Constants.DDB_RESPONSE_ATTRIBUTE_NAME_RESPONSE_METADATA][
-                                 Constants.DDB_RESPONSE_ATTRIBUTE_NAME_RESPONSE_HTTP_STATUS_CODE], http.HTTPStatus.OK,
+            resource = self.generate_mock_resource(None, None, resource_inserted.resource_identifier)
+            event = self.generate_mock_event(Constants.OPERATION_MODIFY, resource)
+            handler_modify_response = request_handler.handler(event, None)
+
+            self.assertEqual(handler_modify_response[Constants.RESPONSE_STATUS_CODE], http.HTTPStatus.OK,
                              'HTTP Status code not 200')
 
         query_results = request_handler.get_table_connection().query(
-            KeyConditionExpression=Key(Constants.DDB_FIELD_RESOURCE_IDENTIFIER).eq(resource_identifier),
+            KeyConditionExpression=Key(Constants.DDB_FIELD_RESOURCE_IDENTIFIER).eq(
+                resource_inserted.resource_identifier),
             ScanIndexForward=True
         )
 
@@ -405,23 +491,22 @@ class TestHandlerCase(unittest.TestCase):
         first_modification_resource = query_results[Constants.DDB_RESPONSE_ATTRIBUTE_NAME_ITEMS][1]
         second_modification_resource = query_results[Constants.DDB_RESPONSE_ATTRIBUTE_NAME_ITEMS][2]
 
-        self.assertEqual(initial_resource[Constants.DDB_FIELD_CREATED_DATE],
-                         time_created,
-                         'Value not persisted as expected')
+        resource_created_date = initial_resource[Constants.DDB_FIELD_CREATED_DATE]
+
         self.assertEqual(first_modification_resource[Constants.DDB_FIELD_CREATED_DATE],
-                         time_created,
+                         resource_created_date,
                          'Value not persisted as expected')
         self.assertEqual(second_modification_resource[Constants.DDB_FIELD_CREATED_DATE],
-                         time_created,
+                         resource_created_date,
                          'Value not persisted as expected')
         self.assertEqual(initial_resource[Constants.DDB_FIELD_MODIFIED_DATE],
-                         time_created,
+                         resource_created_date,
                          'Value not persisted as expected')
         self.assertNotEqual(first_modification_resource[Constants.DDB_FIELD_MODIFIED_DATE],
-                            time_created,
+                            resource_created_date,
                             'Value not persisted as expected')
         self.assertNotEqual(second_modification_resource[Constants.DDB_FIELD_MODIFIED_DATE],
-                            time_created,
+                            resource_created_date,
                             'Value not persisted as expected')
         self.assertNotEqual(first_modification_resource[Constants.DDB_FIELD_MODIFIED_DATE],
                             second_modification_resource[Constants.DDB_FIELD_MODIFIED_DATE],
@@ -436,6 +521,15 @@ class TestHandlerCase(unittest.TestCase):
                             second_modification_resource[Constants.DDB_FIELD_METADATA],
                             'Value not persisted as expected')
         self.remove_mock_database(dynamodb)
+
+    def test_encoders(self):
+        self.assertRaises(TypeError, encode_file_metadata, '')
+        self.assertRaises(TypeError, encode_files, '')
+        self.assertRaises(TypeError, encode_creator, '')
+        self.assertRaises(TypeError, encode_metadata, '')
+        self.assertEqual(encode_metadata(Metadata(None, None, None, None, None, dict(), None)), {},
+                         'Unexpected metadata')
+        self.assertRaises(TypeError, encode_resource, '')
 
     def test_app(self):
         from src import app

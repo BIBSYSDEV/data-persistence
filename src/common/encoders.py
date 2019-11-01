@@ -2,7 +2,6 @@ from data.creator import Creator
 from data.file_metadata import FileMetadata
 from data.metadata import Metadata
 from data.resource import Resource
-from data.title import Title
 
 
 def encode_file_metadata(instance):
@@ -40,14 +39,6 @@ def encode_creator(instance):
         raise TypeError(f"Object of type '{type_name}' is not JSON serializable")
 
 
-def encode_title(instance):
-    if isinstance(instance, Title):
-        return instance.language_code, instance.title
-    else:
-        type_name = instance.__class__.__name__
-        raise TypeError(f"Object of type {type_name} is not JSON serializable")
-
-
 def encode_metadata(instance):
     if instance is None:
         return None
@@ -58,7 +49,7 @@ def encode_metadata(instance):
         else:
             creators = []
             for creator in instance.creators:
-                creators.append(creator.identifier)
+                creators.append(encode_creator(creator))
 
         if instance.titles is None:
             titles = None
@@ -67,7 +58,7 @@ def encode_metadata(instance):
             for key, value in instance.titles.items():
                 if value is not None:
                     titles[key] = value
-            if titles.keys() is 0:
+            if len(titles.keys()) is 0:
                 titles = None
         temp_value = {
             'creators': creators,
