@@ -11,10 +11,10 @@ def validate_resource(operation, resource):
             raise ValueError('Resource with identifier ' + resource.resource_identifier + ' has no files')
         elif resource.owner is None:
             raise ValueError('Resource with identifier ' + resource.resource_identifier + ' has no owner')
-        elif type(resource.metadata) is not dict:
+        elif not isinstance(resource.metadata, dict):
             raise ValueError(
                 'Resource with identifier ' + resource.resource_identifier + ' has invalid attribute type for metadata')
-        elif type(resource.files) is not dict:
+        elif not isinstance(resource.files, dict):
             raise ValueError(
                 'Resource with identifier ' + resource.resource_identifier + ' has invalid attribute type for files')
     elif operation == Constants.OPERATION_INSERT:
@@ -24,7 +24,7 @@ def validate_resource(operation, resource):
             raise ValueError('Resource has no files')
         elif resource.owner is None:
             raise ValueError('Resource has no owner')
-        elif type(resource.metadata) is not dict:
+        elif not isinstance(resource.metadata, dict):
             raise ValueError('Resource has invalid attribute type for metadata')
-        elif type(resource.files) is not dict:
+        elif not isinstance(resource.files, dict):
             raise ValueError('Resource has invalid attribute type for files')
