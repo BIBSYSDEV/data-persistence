@@ -169,18 +169,6 @@ class TestHandlerCase(unittest.TestCase):
                          'HTTP Status code not 400')
         self.remove_mock_database(dynamodb)
 
-    def test_handler_insert_resource_missing_resource_metadata(self):
-        from src.classes.RequestHandler import RequestHandler
-        dynamodb = self.setup_mock_database()
-        request_handler = RequestHandler(dynamodb)
-        resource = self.generate_mock_resource()
-        resource.metadata = None
-        event = self.generate_mock_event(Constants.OPERATION_INSERT, resource)
-        handler_insert_response = request_handler.handler(event, None)
-        self.assertEqual(handler_insert_response[Constants.RESPONSE_STATUS_CODE], http.HTTPStatus.BAD_REQUEST,
-                         'HTTP Status code not 400')
-        self.remove_mock_database(dynamodb)
-
     def test_handler_insert_resource_invalid_resource_metadata_type_in_event_body(self):
         from src.classes.RequestHandler import RequestHandler
         dynamodb = self.setup_mock_database()
@@ -454,11 +442,6 @@ class TestHandlerCase(unittest.TestCase):
         from src.classes.RequestHandler import RequestHandler
         dynamodb = self.setup_mock_database()
         request_handler = RequestHandler(dynamodb)
-
-        # time_created = arrow.utcnow().isoformat().replace('+00:00', 'Z')
-        # resource = self.generate_mock_resource(time_created, time_created)
-        # resource_identifier = resource.resource_identifier
-        # request_handler.insert_resource(resource_identifier, time_created, resource)
 
         resource = self.generate_mock_resource(None, None, None)
         event = self.generate_mock_event(Constants.OPERATION_INSERT, resource)
