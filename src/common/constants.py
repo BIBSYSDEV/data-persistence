@@ -26,3 +26,4 @@ class Constants:
     DDB_FIELD_OWNER = 'owner'
 
     ERROR_MISSING_EVENT = 'Missing event'
+    ERROR_INSUFFICIENT_PARAMETERS = 'Insufficient parameters'

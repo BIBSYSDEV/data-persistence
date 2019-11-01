@@ -58,7 +58,8 @@ class RequestHandler:
             previous_resource = ddb_response[Constants.DDB_RESPONSE_ATTRIBUTE_NAME_ITEMS][0]
             if Constants.DDB_FIELD_CREATED_DATE not in previous_resource:
                 raise ValueError(
-                    'Resource with identifier ' + modified_resource.resource_identifier + ' has no ' + Constants.DDB_FIELD_CREATED_DATE + ' in DB')
+                    'Resource with identifier ' + modified_resource.resource_identifier + ' has no ' +
+                    Constants.DDB_FIELD_CREATED_DATE + ' in DB')
             else:
                 ddb_response = self.table.put_item(
                     Item={
@@ -74,7 +75,7 @@ class RequestHandler:
 
     def handler(self, event, context):
         if event is None or Constants.EVENT_BODY not in event:
-            return response(http.HTTPStatus.BAD_REQUEST, 'Insufficient parameters')
+            return response(http.HTTPStatus.BAD_REQUEST, Constants.ERROR_INSUFFICIENT_PARAMETERS)
         else:
             body = json.loads(event[Constants.EVENT_BODY])
             operation = body.get(Constants.JSON_ATTRIBUTE_NAME_OPERATION)
@@ -87,7 +88,8 @@ class RequestHandler:
 
             current_time = arrow.utcnow().isoformat().replace('+00:00', 'Z')
 
-            if operation == Constants.OPERATION_INSERT and resource is not None:
+            resource_not_none = resource is not None
+            if operation == Constants.OPERATION_INSERT and resource_not_none:
                 try:
                     validate_resource(operation, resource)
                 except ValueError as e:
@@ -96,7 +98,7 @@ class RequestHandler:
                 ddb_response = self.insert_resource(generated_uuid, current_time, resource)
                 ddb_response['resource_identifier'] = generated_uuid
                 return response(http.HTTPStatus.CREATED, json.dumps(ddb_response))
-            elif operation == Constants.OPERATION_MODIFY and resource is not None:
+            elif operation == Constants.OPERATION_MODIFY and resource_not_none:
                 try:
                     validate_resource(operation, resource)
                     ddb_response = self.modify_resource(current_time, resource)
@@ -105,4 +107,4 @@ class RequestHandler:
                 except ValueError as e:
                     return response(http.HTTPStatus.BAD_REQUEST, e.args[0])
             else:
-                return response(http.HTTPStatus.BAD_REQUEST, 'Insufficient parameters')
+                return response(http.HTTPStatus.BAD_REQUEST, Constants.ERROR_INSUFFICIENT_PARAMETERS)
