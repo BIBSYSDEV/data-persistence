@@ -1,27 +1,35 @@
-import decimal
+import http
 import json
+import os
+import uuid
 
+import arrow as arrow
 import boto3
 from boto3.dynamodb.conditions import Key
 from boto3_type_annotations.dynamodb import Table
-import os
-import uuid
-import arrow as arrow
+
+from common.constants import Constants
+from common.validator import validate_resource
+from data.resource import Resource
+
+
+def response(status_code, body):
+    return {
+        Constants.RESPONSE_STATUS_CODE: status_code,
+        Constants.RESPONSE_BODY: body
+    }
 
 
 class RequestHandler:
 
-    def __init__(self, dynamodb=None, table_name=None):
+    def __init__(self, dynamodb=None):
         if dynamodb is None:
-            self.dynamodb = boto3.resource('dynamodb')
+            self.dynamodb = boto3.resource('dynamodb', region_name=os.environ[Constants.ENV_VAR_REGION])
+            # self.dynamodb = boto3.resource('dynamodb', region_name='eu-west-1')
         else:
             self.dynamodb = dynamodb
 
-        if table_name is None:
-            self.table_name = os.environ.get("TABLE_NAME")
-        else:
-            self.table_name = table_name
-
+        self.table_name = os.environ.get(Constants.ENV_VAR_TABLE_NAME)
         self.table: Table = self.dynamodb.Table(self.table_name)
 
     def get_table_connection(self):
@@ -30,64 +38,72 @@ class RequestHandler:
     def insert_resource(self, generated_uuid, current_time, resource):
         ddb_response = self.table.put_item(
             Item={
-                'resource_identifier': generated_uuid,
-                'modifiedDate': current_time,
-                'createdDate': current_time,
-                'metadata': resource['metadata']
+                Constants.DDB_FIELD_RESOURCE_IDENTIFIER: generated_uuid,
+                Constants.DDB_FIELD_MODIFIED_DATE: current_time,
+                Constants.DDB_FIELD_CREATED_DATE: current_time,
+                Constants.DDB_FIELD_METADATA: resource.metadata,
+                Constants.DDB_FIELD_FILES: resource.files,
+                Constants.DDB_FIELD_OWNER: resource.owner
             }
         )
         return ddb_response
 
     def modify_resource(self, current_time, modified_resource):
         ddb_response = self.table.query(
-            KeyConditionExpression=Key('resource_identifier')
-                .eq(modified_resource['resource_identifier']))
+            KeyConditionExpression=Key(Constants.DDB_FIELD_RESOURCE_IDENTIFIER).eq(
+                modified_resource.resource_identifier))
 
-        previous_resource = ddb_response['Items'][0]
-
-        ddb_response = self.table.put_item(
-            Item={
-                'resource_identifier': modified_resource['resource_identifier'],
-                'modifiedDate': current_time,
-                'createdDate': previous_resource['createdDate'],
-                'metadata': modified_resource['metadata']
-            }
-        )
-
-        return ddb_response
+        if len(ddb_response[Constants.DDB_RESPONSE_ATTRIBUTE_NAME_ITEMS]) == 0:
+            raise ValueError('Resource with identifier ' + modified_resource.resource_identifier + ' not found')
+        else:
+            previous_resource = ddb_response[Constants.DDB_RESPONSE_ATTRIBUTE_NAME_ITEMS][0]
+            if Constants.DDB_FIELD_CREATED_DATE not in previous_resource:
+                raise ValueError(
+                    'Resource with identifier ' + modified_resource.resource_identifier + ' has no ' + Constants.DDB_FIELD_CREATED_DATE + ' in DB')
+            else:
+                ddb_response = self.table.put_item(
+                    Item={
+                        Constants.DDB_FIELD_RESOURCE_IDENTIFIER: modified_resource.resource_identifier,
+                        Constants.DDB_FIELD_MODIFIED_DATE: current_time,
+                        Constants.DDB_FIELD_CREATED_DATE: previous_resource[Constants.DDB_FIELD_CREATED_DATE],
+                        Constants.DDB_FIELD_METADATA: modified_resource.metadata,
+                        Constants.DDB_FIELD_FILES: modified_resource.files,
+                        Constants.DDB_FIELD_OWNER: modified_resource.owner
+                    }
+                )
+                return ddb_response
 
     def handler(self, event, context):
-        operation = json.loads(event['body']).get('operation')
-        resource = json.loads(event['body']).get('resource')
-
-        # print('Operation - ' + operation)
-        current_time = arrow.utcnow().isoformat().replace("+00:00", "Z")
-
-        if operation == 'INSERT':
-            generated_uuid = uuid.uuid4().__str__()
-            ddb_response = self.insert_resource(generated_uuid, current_time, resource)
-            return {
-                'statusCode': 201,
-                'body': json.dumps(ddb_response),
-                'headers': {'Content-Type': 'application/json'}
-            }
-        elif operation == 'MODIFY':
-            ddb_response = self.modify_resource(resource, current_time)
-            return {
-                'statusCode': 200,
-                'body': json.dumps(ddb_response),
-                'headers': {'Content-Type': 'application/json'}
-            }
+        if event is None or Constants.EVENT_BODY not in event:
+            return response(http.HTTPStatus.BAD_REQUEST, 'Insufficient parameters')
         else:
-            raise ValueError("Unknown operation")
+            body = json.loads(event[Constants.EVENT_BODY])
+            operation = body.get(Constants.JSON_ATTRIBUTE_NAME_OPERATION)
+            resource_dict_from_json = body.get(Constants.JSON_ATTRIBUTE_NAME_RESOURCE)
 
+            try:
+                resource = Resource.from_dict(resource_dict_from_json)
+            except TypeError as e:
+                return response(http.HTTPStatus.BAD_REQUEST, e.args[0])
 
-# Helper class to convert a DynamoDB item to JSON.
-class DecimalEncoder(json.JSONEncoder):
-    def default(self, o):
-        if isinstance(o, decimal.Decimal):
-            if abs(o) % 1 > 0:
-                return float(o)
+            current_time = arrow.utcnow().isoformat().replace('+00:00', 'Z')
+
+            if operation == Constants.OPERATION_INSERT and resource is not None:
+                try:
+                    validate_resource(operation, resource)
+                except ValueError as e:
+                    return response(http.HTTPStatus.BAD_REQUEST, e.args[0])
+                generated_uuid = uuid.uuid4().__str__()
+                ddb_response = self.insert_resource(generated_uuid, current_time, resource)
+                ddb_response['resource_identifier'] = generated_uuid
+                return response(http.HTTPStatus.CREATED, json.dumps(ddb_response))
+            elif operation == Constants.OPERATION_MODIFY and resource is not None:
+                try:
+                    validate_resource(operation, resource)
+                    ddb_response = self.modify_resource(current_time, resource)
+                    ddb_response['resource_identifier'] = resource.resource_identifier
+                    return response(http.HTTPStatus.OK, json.dumps(ddb_response))
+                except ValueError as e:
+                    return response(http.HTTPStatus.BAD_REQUEST, e.args[0])
             else:
-                return int(o)
-        return super(DecimalEncoder, self).default(o)
+                return response(http.HTTPStatus.BAD_REQUEST, 'Insufficient parameters')
