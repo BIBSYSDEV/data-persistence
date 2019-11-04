@@ -60,18 +60,18 @@ class RequestHandler:
             raise ValueError(
                 'Resource with identifier ' + modified_resource.resource_identifier + ' has no ' +
                 Constants.DDB_FIELD_CREATED_DATE + ' in DB')
-        else:
-            ddb_response = self.table.put_item(
-                Item={
-                    Constants.DDB_FIELD_RESOURCE_IDENTIFIER: modified_resource.resource_identifier,
-                    Constants.DDB_FIELD_MODIFIED_DATE: current_time,
-                    Constants.DDB_FIELD_CREATED_DATE: previous_resource[Constants.DDB_FIELD_CREATED_DATE],
-                    Constants.DDB_FIELD_METADATA: modified_resource.metadata,
-                    Constants.DDB_FIELD_FILES: modified_resource.files,
-                    Constants.DDB_FIELD_OWNER: modified_resource.owner
-                }
-            )
-            return ddb_response
+
+        ddb_response = self.table.put_item(
+            Item={
+                Constants.DDB_FIELD_RESOURCE_IDENTIFIER: modified_resource.resource_identifier,
+                Constants.DDB_FIELD_MODIFIED_DATE: current_time,
+                Constants.DDB_FIELD_CREATED_DATE: previous_resource[Constants.DDB_FIELD_CREATED_DATE],
+                Constants.DDB_FIELD_METADATA: modified_resource.metadata,
+                Constants.DDB_FIELD_FILES: modified_resource.files,
+                Constants.DDB_FIELD_OWNER: modified_resource.owner
+            }
+        )
+        return ddb_response
 
     def handler(self, event, context):
         if event is None or Constants.EVENT_BODY not in event:
