@@ -68,8 +68,8 @@ class TestHandlerCase(unittest.TestCase):
         table_connection.put_item(
             Item={
                 'resource_identifier': self.EXISTING_RESOURCE_IDENTIFIER,
-                'modifiedDate': '2019-10-24T12:57:02.655994Z',
-                'createdDate': '2019-10-24T12:57:02.655994Z',
+                'modifiedDate': '2019-11-02T08:46:14.464755+00:00',
+                'createdDate': '2019-11-02T08:46:14.464755+00:00',
                 'metadata': {
                     'titles': {
                         'no': 'En tittel'
@@ -83,7 +83,7 @@ class TestHandlerCase(unittest.TestCase):
         table_connection.put_item(
             Item={
                 'resource_identifier': self.EXISTING_RESOURCE_IDENTIFIER_MISSING_CREATED_DATE,
-                'modifiedDate': '2019-10-24T12:57:02.655994Z',
+                'modifiedDate': '2019-11-04T08:46:14.464755+00:00',
                 'metadata': {
                     'titles': {
                         'no': 'En tittel'
